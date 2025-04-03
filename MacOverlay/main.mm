@@ -15,13 +15,19 @@
 
 OverlayWindow *window = nil;
 CATextLayer *textLayer = nil; // Text layer reference
+NSScrollView *scrollView = nil;
+NSTextView *textView = nil;
 
-// ✅ Function to update overlay text
+// Function to update overlay text
 void updateOverlayText(NSString *newText) {
-    textLayer.string = newText;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        textView.string = newText;
+        NSPoint topPoint = NSMakePoint(0, [[textView textStorage] size].height);
+        [textView scrollPoint:topPoint]; // Scroll to top automatically
+    });
 }
 
-// ✅ Toggle overlay visibility
+// Toggle overlay visibility
 void toggleOverlay() {
     if (window.isVisible) {
         [window orderOut:nil];
@@ -59,8 +65,8 @@ NSString* extractTextFromScreenshot() {
     NSMutableString *extractedText = [NSMutableString string];
 
     for (VNRecognizedTextObservation *observation in request.results) {
-        if ([observation respondsToSelector:@selector(topCandidates:)]) {  // 🔥 Ensure method exists
-            NSArray<VNRecognizedText *> *candidates = [observation topCandidates:1]; // ✅ Correct way
+        if ([observation respondsToSelector:@selector(topCandidates:)]) {  //  Ensure method exists
+            NSArray<VNRecognizedText *> *candidates = [observation topCandidates:1]; // Correct way
             if (candidates.count > 0) {
                 [extractedText appendFormat:@"%@\n", candidates.firstObject.string];
             }
@@ -76,55 +82,78 @@ NSString* extractTextFromScreenshot() {
 
 
 void solveCodeFromScreenshot() {
-    // Update overlay to show we're processing
-    updateOverlayText(@"Processing screenshot...");
-    
-    NSString *scriptPath = @"/Users/harshvardhangaur/Desktop/gemini_solver.py";
-    NSString *extractedText = extractTextFromScreenshot();
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        updateOverlayText(@"Processing screenshot...");
 
-    if (!extractedText || [extractedText length] == 0) {
-        NSLog(@"[ERROR] No text extracted from screenshot.");
-        updateOverlayText(@"ERROR: No text extracted from screenshot.");
-        return;
-    }
+        NSString *scriptPath = @"/Users/harshvardhangaur/Desktop/gemini_solver.py";
+        NSString *extractedText = extractTextFromScreenshot();
 
-    // Show the extracted text in the overlay
-    updateOverlayText([NSString stringWithFormat:@"Extracted text:\n%@\n\nSending to solver...", extractedText]);
-    
-    NSTask *task = [[NSTask alloc] init];
-//    task.launchPath = @"/usr/bin/python3";
-    task.launchPath = @"/usr/local/opt/python@3.12/bin/python3";
-    task.arguments = @[scriptPath, extractedText];
-
-    NSPipe *pipe = [NSPipe pipe];
-    task.standardOutput = pipe;
-    task.standardError = pipe;
-
-    NSFileHandle *file = pipe.fileHandleForReading;
-    
-    @try {
-        [task launch];
-        
-        NSData *data = [file readDataToEndOfFile];
-        NSString *solution = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-
-        NSLog(@"[DEBUG] Solution Output:\n%@", solution);
-
-        if (!solution || [solution length] == 0) {
-            NSLog(@"[ERROR] No solution received.");
-            updateOverlayText(@"ERROR: No solution received from Python script.");
+        if (!extractedText || [extractedText length] == 0) {
+            NSLog(@"[ERROR] No text extracted from screenshot.");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                updateOverlayText(@"ERROR: No text extracted from screenshot.");
+            });
             return;
         }
 
-        // Update the overlay with solution text
-        updateOverlayText([NSString stringWithFormat:@"SOLUTION:\n\n%@", solution]);
-    } @catch (NSException *exception) {
-        NSLog(@"[ERROR] Exception while running Python script: %@", exception.reason);
-        updateOverlayText([NSString stringWithFormat:@"ERROR: Failed to run Python script.\n%@", exception.reason]);
-    }
+        // Instruction for Gemini
+        NSString *instruction = @"Extract a problem statement/error code from this text and ignore all other useless information. "
+                                "Give the solution in Java. Just give code, nothing else.\n\n";
+        NSString *finalPrompt = [instruction stringByAppendingString:extractedText];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            updateOverlayText([NSString stringWithFormat:@"Extracted text:\n%@\n\nSending to solver...", extractedText]);
+        });
+
+        // No file writing - Pass input via pipe
+        NSTask *task = [[NSTask alloc] init];
+        task.launchPath = @"/usr/local/opt/python@3.12/bin/python3";
+        task.arguments = @[scriptPath];
+
+        NSPipe *inputPipe = [NSPipe pipe];
+        NSPipe *outputPipe = [NSPipe pipe];
+
+        task.standardInput = inputPipe;
+        task.standardOutput = outputPipe;
+        task.standardError = outputPipe;
+
+        NSFileHandle *inputHandle = [inputPipe fileHandleForWriting];
+        NSFileHandle *outputHandle = [outputPipe fileHandleForReading];
+
+        @try {
+            [task launch];
+
+            // Send prompt text via pipe
+            [inputHandle writeData:[finalPrompt dataUsingEncoding:NSUTF8StringEncoding]];
+            [inputHandle closeFile];
+
+            NSData *data = [outputHandle readDataToEndOfFile];
+            NSString *solution = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+
+            NSLog(@"[DEBUG] Solution Output:\n%@", solution);
+
+            if (!solution || [solution length] == 0) {
+                NSLog(@"[ERROR] No solution received.");
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    updateOverlayText(@"ERROR: No solution received from Python script.");
+                });
+                return;
+            }
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                updateOverlayText([NSString stringWithFormat:@"SOLUTION:\n\n%@", solution]);
+            });
+        } @catch (NSException *exception) {
+            NSLog(@"[ERROR] Exception while running Python script: %@", exception.reason);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                updateOverlayText([NSString stringWithFormat:@"ERROR: Failed to run Python script.\n%@", exception.reason]);
+            });
+        }
+    });
 }
 
-// ✅ Function to capture a screenshot
+
+// Function to capture a screenshot
 void captureScreenshot() {
     updateOverlayText(@"Taking screenshot...");
     NSString *filePath = [NSString stringWithFormat:@"%@/Desktop/screenshot.png", NSHomeDirectory()];
@@ -133,7 +162,8 @@ void captureScreenshot() {
 
     NSTask *task = [[NSTask alloc] init];
     [task setLaunchPath:@"/usr/sbin/screencapture"];
-    [task setArguments:@[@"-i", filePath]];
+//    [task setArguments:@[@"-i", filePath]];
+    [task setArguments:@[@"-x", filePath]];
 
     @try {
         [task launch];
@@ -155,7 +185,7 @@ void captureScreenshot() {
     }
 }
 
-// ✅ Hotkey event handler
+// Hotkey event handler
 OSStatus hotkeyCallback(EventHandlerCallRef nextHandler, EventRef event, void *userData) {
     EventHotKeyID hotkeyID;
     GetEventParameter(event, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hotkeyID), NULL, &hotkeyID);
@@ -164,19 +194,24 @@ OSStatus hotkeyCallback(EventHandlerCallRef nextHandler, EventRef event, void *u
         toggleOverlay();
     } else if (hotkeyID.id == 2) {
         captureScreenshot();
+    } else if (hotkeyID.id == 3) {
+        NSLog(@"[INFO] Exit hotkey pressed. Closing app.");
+        exit(0);
     }
 
     return noErr;
 }
 
-// ✅ Register global hotkeys
+// Register global hotkeys
 void registerGlobalHotkeys() {
-    EventHotKeyRef hotkeyRef1, hotkeyRef2;
+    EventHotKeyRef hotkeyRef1, hotkeyRef2, hotkeyRef3;
     EventHotKeyID hotkeyID1 = {'htk1', 1};
     EventHotKeyID hotkeyID2 = {'htk2', 2};
+    EventHotKeyID hotkeyID3 = {'htk3', 3};
 
     RegisterEventHotKey(31, cmdKey | shiftKey, hotkeyID1, GetApplicationEventTarget(), 0, &hotkeyRef1); // Cmd + Shift + O
     RegisterEventHotKey(1, cmdKey | shiftKey, hotkeyID2, GetApplicationEventTarget(), 0, &hotkeyRef2);  // Cmd + Shift + S
+    RegisterEventHotKey(7, cmdKey | shiftKey, hotkeyID3, GetApplicationEventTarget(), 0, &hotkeyRef3);  // Cmd + Shift + X (Exit)
 
     EventTypeSpec eventType;
     eventType.eventClass = kEventClassKeyboard;
@@ -195,38 +230,35 @@ int main(int argc, const char * argv[]) {
         CGFloat overlayHeight = screenFrame.size.height * 0.75;
         NSRect overlayFrame = NSMakeRect(50, (screenFrame.size.height - overlayHeight) / 2, overlayWidth, overlayHeight);
 
+        // Create the overlay window
         window = [[OverlayWindow alloc] initWithContentRect:overlayFrame
                                                   styleMask:NSWindowStyleMaskBorderless
                                                     backing:NSBackingStoreBuffered
                                                       defer:NO];
 
-        [window setLevel:NSScreenSaverWindowLevel];
+//        [window setLevel:NSScreenSaverWindowLevel];
+        [window setLevel:NSFloatingWindowLevel];
         [window setOpaque:NO];
         [window setBackgroundColor:[[NSColor blackColor] colorWithAlphaComponent:0.5]];
         [window setIgnoresMouseEvents:YES];
         [window setSharingType:NSWindowSharingNone];
 
-        CAMetalLayer *metalLayer = [CAMetalLayer layer];
-        NSView *contentView = [[NSView alloc] initWithFrame:overlayFrame];
-        [contentView setLayer:metalLayer];
-        [contentView setWantsLayer:YES];
-        [window setContentView:contentView];
+        // Scrollable text area
+        NSRect scrollFrame = NSMakeRect(10, 10, overlayWidth - 20, overlayHeight - 20);
+        scrollView = [[NSScrollView alloc] initWithFrame:scrollFrame];
+        [scrollView setHasVerticalScroller:YES];
+        [scrollView setDrawsBackground:NO];
 
-        textLayer = [CATextLayer layer];
-        textLayer.string = @"Hello, Overlay!";
-        textLayer.fontSize = 24;
-        textLayer.foregroundColor = [[NSColor whiteColor] CGColor];
-        textLayer.frame = CGRectMake(10, 10, overlayWidth - 20, overlayHeight - 20);
-        textLayer.alignmentMode = kCAAlignmentLeft;
-        textLayer.contentsScale = [mainScreen backingScaleFactor];
+        textView = [[NSTextView alloc] initWithFrame:scrollFrame];
+        textView.editable = NO;
+        textView.selectable = YES;
+        textView.textColor = [NSColor whiteColor];
+//        textView.backgroundColor = [[NSColor blackColor] colorWithAlphaComponent:0.0];
+        textView.backgroundColor = [NSColor clearColor];
+        textView.font = [NSFont fontWithName:@"JetBrains Mono" size:16];
 
-        CTFontRef fontRef = CTFontCreateWithName(CFSTR("JetBrains Mono"), 24, NULL);
-        if (fontRef) {
-            textLayer.font = fontRef;
-            CFRelease(fontRef);
-        }
-
-        [contentView.layer addSublayer:textLayer];
+        [scrollView setDocumentView:textView];
+        [window.contentView addSubview:scrollView];
 
         [window orderFront:nil];
 
@@ -235,7 +267,7 @@ int main(int argc, const char * argv[]) {
         [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent * (NSEvent *event) {
             if ((event.modifierFlags & NSEventModifierFlagCommand) &&
                 (event.modifierFlags & NSEventModifierFlagShift) &&
-                event.keyCode == 1) { // 🔹 "S" Key
+                event.keyCode == 1) { // "S" Key
 
                 solveCodeFromScreenshot();
                 return nil; // Prevents further key propagation
