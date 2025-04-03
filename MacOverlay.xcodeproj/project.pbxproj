@@ -6,13 +6,31 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		10B123CA2D9EEE5500632C94 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B123C92D9EEE5500632C94 /* Carbon.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		10B123AE2D9EE5B300632C94 /* MacOverlay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacOverlay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		10B123C92D9EEE5500632C94 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		10B123C72D9EEB7700632C94 /* Exceptions for "MacOverlay" folder in "MacOverlay" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 10B123AD2D9EE5B300632C94 /* MacOverlay */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		10B123B02D9EE5B300632C94 /* MacOverlay */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				10B123C72D9EEB7700632C94 /* Exceptions for "MacOverlay" folder in "MacOverlay" target */,
+			);
 			path = MacOverlay;
 			sourceTree = "<group>";
 		};
@@ -23,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				10B123CA2D9EEE5500632C94 /* Carbon.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				10B123B02D9EE5B300632C94 /* MacOverlay */,
+				10B123C82D9EEE5500632C94 /* Frameworks */,
 				10B123AF2D9EE5B300632C94 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +63,14 @@
 				10B123AE2D9EE5B300632C94 /* MacOverlay.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		10B123C82D9EEE5500632C94 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				10B123C92D9EEE5500632C94 /* Carbon.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -249,8 +277,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacOverlay/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -274,8 +302,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacOverlay/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
